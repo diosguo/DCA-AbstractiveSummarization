@@ -1,14 +1,20 @@
 import tensorflow as tf
 from argparse import ArgumentParser
-from tensorflow.python.keras.layers import Embedding, CuDNNLSTM, Dropout, Dense, Bidirectional, Flatten
-from tensorflow.python.keras.models import Sequential
+from model import DCA_Model
 
-model = Sequential()
-model.add(Embedding(3800,32,input_length=380))
-model.add(Dropout(0.2))
-model.add(Bidirectional(CuDNNLSTM(32, return_sequences=False), merge_mode='concat'))
-model.add(Dropout(.5))
-model.add(Flatten())
-model.add(Dense(1, activation='sigmoid'))
 
-model.summary()
+argparse = ArgumentParser()
+argparse.add_argument('--agents_num', default=3, type=int, help="the number of agents")
+argparse.add_argument('--encode_dim', default=300, type=int, help='dim of encoder output')
+argparse.add_argument('--agent_length', default=400, type=int, help='input length of per agents')
+
+arg = argparse.parse_args()
+
+
+
+def main():
+    model = DCA_Model(arg)
+
+
+if __name__ == '__main__':
+    main()
