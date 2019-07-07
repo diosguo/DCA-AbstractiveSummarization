@@ -12,12 +12,15 @@ class DCA_Model(object):
 
         self._build_local_encoder()
         self._build_contextual_encoder()
+        self._build_decoder()
+
 
     def _build_local_encoder(self):
         self._local_encoder = []
-        input = Input([900],batch_size=self.batch_size)
+        self.encoder_input = Input([900],batch_size=self.batch_size)
+        self.decoder_input = Input([200],batch_size=self.batch_size)
         e = Embedding(1, self.emb_dim, input_length=900)
-        e = Dropout(0.2)(e(input))
+        e = Dropout(0.2)(e(self.encoder_input))
         for i in range(self.n_agents):
             et = tf.slice(e,[0,300*i,0],[self.batch_size, 300, self.emb_dim])
             b_lstm = Bidirectional(CuDNNLSTM(self.encode_dim, return_sequences=True), merge_mode='concat')(et)
@@ -38,6 +41,16 @@ class DCA_Model(object):
                 f = v*tf.tanh((w3*self._local_encoder[i]+w4*z))
                 self._contextual_encoder[j].append(Bidirectional(CuDNNLSTM(self.encode_dim,return_sequences=True),
                                                               merge_mode='concat')(f))
+
+    def _build_decoder(self):
+        self._decoder = Bidirectional(
+            CuDNNLSTM(self.encode_dim, return_sequences=True), merge_mode='concat'
+        )(self.decoder_input, initial_state=self._contextual_encoder[0][-1])
+
+        for i in range(self.n_agents):
+            pass
+
+
 
 
 if __name__ == '__main__':
