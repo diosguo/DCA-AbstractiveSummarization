@@ -11,5 +11,5 @@ model.add(Flatten())
 model.add(Dense(1, activation='sigmoid'))
 
 model.summary()
-
+LSTM
 print(model.layers[1].states)

@@ -9,6 +9,7 @@ argparse.add_argument('--encode_dim', default=300, type=int, help='dim of encode
 argparse.add_argument('--agent_length', default=400, type=int, help='input length of per agents')
 argparse.add_argument('--emb_dim', default=300, type=int, help='dimention of embedding')
 argparse.add_argument('--batch_size', default=16, type=int , help='batch size')
+argparse.add_argument('--contextual_layers_num', default=2, type=int, help='number of contextual encoder layers')
 arg = argparse.parse_args()
 
 
