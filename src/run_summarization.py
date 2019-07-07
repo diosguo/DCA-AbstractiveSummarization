@@ -7,7 +7,8 @@ argparse = ArgumentParser()
 argparse.add_argument('--agents_num', default=3, type=int, help="the number of agents")
 argparse.add_argument('--encode_dim', default=300, type=int, help='dim of encoder output')
 argparse.add_argument('--agent_length', default=400, type=int, help='input length of per agents')
-
+argparse.add_argument('--emb_dim', default=300, type=int, help='dimention of embedding')
+argparse.add_argument('--batch_size', default=16, type=int , help='batch size')
 arg = argparse.parse_args()
 
 
