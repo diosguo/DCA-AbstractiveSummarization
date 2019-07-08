@@ -29,16 +29,16 @@ class DCA_Model(object):
 
     def _build_contextual_encoder(self):
         self._contextual_encoder = [[]] * self.contextual_layers_num
-        v = tf.Variable(0,dtype=tf.float32)
-        w3 = tf.Variable(0, dtype=tf.float32)
-        w4 = tf.Variable(0, dtype=tf.float32)
+        v = tf.Variable(tf.random_normal(shape=[self.emb_dim]),dtype=tf.float32)
+        w3 = tf.Variable(tf.random_normal(shape=[self.encode_dim, self.emb_dim]), dtype=tf.float32)
+        w4 = tf.Variable(tf.random_normal(shape=[self.encode_dim, self.emb_dim]), dtype=tf.float32)
         for j in range(self.contextual_layers_num):
             for i in range(self.n_agents):
                 z = tf.add_n(
                     [ tf.slice(x,[-1,-1,0],[1,1,self.encode_dim*2]) for x in (self._local_encoder if j==0 else self._contextual_encoder[j])]
                 )
                 z = z/self.n_agents
-                f = v*tf.tanh((w3*self._local_encoder[i]+w4*z))
+                f = v*tf.tanh(tf.matmul(self._local_encoder[i],w3)+tf.matmul(z,w4))
                 self._contextual_encoder[j].append(Bidirectional(CuDNNLSTM(self.encode_dim,return_sequences=True),
                                                               merge_mode='concat')(f))
 
