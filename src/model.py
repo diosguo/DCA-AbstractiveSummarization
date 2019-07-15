@@ -17,45 +17,54 @@ class DCA_Model(object):
 
 
     def _build_local_encoder(self):
-        self._local_encoder = []
-        self.encoder_input = Input([900],batch_size=self.batch_size)
-        self.decoder_input = Input([200],batch_size=self.batch_size)
-        e = Embedding(self.vocab_size, self.emb_dim, input_length=900)
-        e = Dropout(self.dropout_keep)(e(self.encoder_input))
-        for i in range(self.n_agents):
-            et = tf.slice(e,[0,300*i,0],[self.batch_size, 300, self.emb_dim])
-            b_lstm = Bidirectional(CuDNNLSTM(self.encode_dim, return_sequences=True), merge_mode='concat')(et)
-            b_lstm = Dropout(self.dropout_keep)(b_lstm)
-            b_lstm = Dense(self.encode_dim)(b_lstm)
-            self._local_encoder.append(b_lstm)
+        with tf.variable_scope('local_encoder'):
+            self._local_encoder = []
+            self.encoder_input = Input([900],batch_size=self.batch_size)
+            self.decoder_input = Input([200],batch_size=self.batch_size)
+            e = Embedding(self.vocab_size, self.emb_dim, input_length=900)
+            e = Dropout(self.dropout_keep)(e(self.encoder_input))
+            for i in range(self.n_agents):
+                et = tf.slice(e,[0,300*i,0],[self.batch_size, 300, self.emb_dim])
+                b_lstm = Bidirectional(CuDNNLSTM(self.encode_dim, return_sequences=True), merge_mode='concat')(et)
+                b_lstm = Dropout(self.dropout_keep)(b_lstm)
+                b_lstm = Dense(self.encode_dim)(b_lstm)
+                self._local_encoder.append(b_lstm)
 
     def _build_contextual_encoder(self):
-        self._contextual_encoder = [[]] * self.contextual_layers_num
 
-        # from the article, I can't know the shape of W, and how can a vector product with a vector to generate a new
-        # vector, so, use f=tanh(Wh+Wz) replace the original. I just omit the 'v'
-        # v = tf.Variable(tf.random_normal(shape=[self.emb_dim]),dtype=tf.float32)
-        w3 = tf.Variable(tf.random_normal(shape=[self.encode_dim, self.emb_dim]), dtype=tf.float32)
-        w4 = tf.Variable(tf.random_normal(shape=[self.encode_dim, self.emb_dim]), dtype=tf.float32)
-        for j in range(self.contextual_layers_num):
-            for i in range(self.n_agents):
-                z = tf.add_n(
-                    [tf.reshape(
-                        tf.slice(x, [-1, -1, 0], [1, 1, self.encode_dim]),
-                        [1, self.encode_dim]) for x in (self._local_encoder if j==0 else self._contextual_encoder[j])]
-                )
-                z = z/(self.n_agents-1)
-                f = tf.tanh(tf.matmul(self._local_encoder[i], w3)+tf.matmul(z, w4))
+        with tf.variable_scope('contextual_encoder'):
+            self._contextual_encoder = [[]] * self.contextual_layers_num
 
-                self._contextual_encoder[j].append(
-                    Dense(self.encode_dim)(
-                        Bidirectional(
-                            CuDNNLSTM(self.encode_dim,return_sequences=True),
-                            merge_mode='concat')(f)
+
+            w3 = tf.Variable(tf.random_normal(shape=[self.encode_dim, self.emb_dim]), dtype=tf.float32)
+            w4 = tf.Variable(tf.random_normal(shape=[self.encode_dim, self.emb_dim]), dtype=tf.float32)
+            for j in range(self.contextual_layers_num):
+                for i in range(self.n_agents):
+                    z = tf.add_n(
+                        [tf.reshape(
+                            tf.slice(x, [-1, -1, 0], [1, 1, self.encode_dim]),
+                            [1, self.encode_dim]) for x in (self._local_encoder if j==0 else self._contextual_encoder[j])]
                     )
-                )
+                    z = z/(self.n_agents-1)
+                    f = tf.tanh(tf.matmul(self._local_encoder[i], w3)+tf.matmul(z, w4))
+
+                    self._contextual_encoder[j].append(
+                        Dense(self.encode_dim)(
+                            Bidirectional(
+                                CuDNNLSTM(self.encode_dim,return_sequences=True),
+                                merge_mode='concat')(f)
+                        )
+                    )
 
     def _build_decoder(self):
+
+        with tf.variable_scope('decoder'):
+            with tf.variable_scope('word_attention'):
+                pass
+
+            with tf.variable_scope('agent_attention'):
+                pass
+
         self._decoder = Bidirectional(
             CuDNNLSTM(self.encode_dim, return_sequences=True), merge_mode='concat'
         )(self.decoder_input, initial_state=self._contextual_encoder[0][-1])
