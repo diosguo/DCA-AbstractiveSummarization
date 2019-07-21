@@ -1,6 +1,9 @@
 from tensorflow.python.keras.layers import Embedding, CuDNNLSTM, Dropout, Dense, Bidirectional, Flatten, Input
 from tensorflow.python.keras.models import Sequential, Model
 import tensorflow as tf
+from attention import BahdanauAttention
+
+
 
 class DCA_Model(object):
     def __init__(self, arg):
@@ -11,6 +14,7 @@ class DCA_Model(object):
         self.contextual_layers_num = arg.contextual_layers_num
         self.vocab_size = arg.vocab_size
         self.dropout_keep = arg.drop_keep
+        self.attention_units = arg.attention_units
         self._build_local_encoder()
         self._build_contextual_encoder()
         self._build_decoder()
@@ -57,9 +61,16 @@ class DCA_Model(object):
                     )
 
     def _build_decoder(self):
+        attention = BahdanauAttention(self.attention_units)
+        decoder = CuDNNLSTM(self.encode_dim, return_state=True)
+
+
+
 
         with tf.variable_scope('decoder'):
             with tf.variable_scope('word_attention'):
+                # calc context_vector for each agents
+
                 pass
 
             with tf.variable_scope('agent_attention'):
@@ -88,7 +99,7 @@ if __name__ == '__main__':
     argparse.add_argument('--contextual_layers_num', default=2, type=int, help='number of contextual encoder layers')
     argparse.add_argument('--vocab_size', default=20000, type=int, help='size of vocabulary')
     argparse.add_argument('--drop_keep', default=0.5, type=float)
-
+    argparse.add_argument('--attention_units', default=100, type=int)
     arg = argparse.parse_args()
 
     s = DCA_Model(arg)
