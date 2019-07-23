@@ -42,7 +42,7 @@ class DCA_Model(object):
                                self.dropout_keep,
                                self.encode_dim,
                                self.n_agents,
-                               self.encoder_layers_num
+                               self.encoder_layers_num,
                                self.batch_size)
         self.decode = Decoder(self.attention_units, self.encode_dim, self.decode_len, self.vocab_size, self.emb_dim)
         self.softmax = Softmax()
