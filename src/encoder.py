@@ -6,7 +6,7 @@ import tensorflow as tf
 
 
 class Encoder(Model):
-    def __init__(self, vocab_size, emb_dim, dropout, encode_dim, agents_num, layers_num):
+    def __init__(self, vocab_size, emb_dim, dropout, encode_dim, agents_num, layers_num, batch_size):
         """
         Include Local Encoder and Contextual Encoder
         :param vocab_size: size of vocab
@@ -19,11 +19,12 @@ class Encoder(Model):
         :return encoder output with shape: [agents, [batch_size, part_len, encode_dim]] outer is a list in python inner
             is a tensor
         """
+        super(Encoder, self).__init__()
         self.local_encoder = LocalEncoder(vocab_size,emb_dim, dropout,encode_dim,agents_num)
 
-        self.context_encoder = ContextualEncoder(layers_num, agents_num, encode_dim, emb_dim)
+        self.context_encoder = ContextualEncoder(layers_num, agents_num, encode_dim, emb_dim, batch_size)
 
-        super(Encoder, self).__init__()
+
 
     def call(self, inputs):
         """
@@ -49,41 +50,45 @@ class LocalEncoder(Model):
 
         # bilstm
         self.bilstm = Bidirectional(CuDNNLSTM(self.encode_dim, return_sequences=True), merge_mode='concat')
-        self.bilstm = Dropout(self.dropout)(self.bilstm)
+        self.dropout_layer = Dropout(self.dropout)
 
         # define linear
         self.dense = Dense(self.encode_dim)
 
-        embedding = Embedding(vocab_size, emb_dim)
-        self.embedding = Dropout(self.dropout)(embedding)
+        self.embedding = Embedding(vocab_size, emb_dim)
+        self.embedding_dropout = Dropout(self.dropout)
 
     def call(self, inputs):
         local_encoder_outputs = []
         inputs_embedding = self.embedding(inputs)
+        inputs_embedding = self.embedding_dropout(inputs_embedding)
         for agent_index in range(self.agents_num):
-            part_sent = tf.slice(inputs_embedding, [0, 300*i, 0], [-1, 300, self.emb_dim])
+            part_sent = tf.slice(inputs_embedding, [0, 300*agent_index, 0], [-1, 300, self.emb_dim])
             local_encoder_outputs.append(
                 self.dense(
-                    self.bilstm(part_sent)
+                    self.dropout_layer(
+                        self.bilstm(part_sent)
+                    )
+
                 )
             )
         return local_encoder_outputs
 
 class ContextualEncoder(Model):
-    def __init__(self, layer_num, agents_num, encode_dim, emb_dim ,):
+    def __init__(self, layer_num, agents_num, encode_dim, emb_dim , batch_size):
         super(ContextualEncoder, self).__init__()
         self.layer_num = layer_num
         self.agents_num = agents_num
         self.encode_dim = encode_dim
         self.emb_dim = emb_dim
-
+        self.batch_size = batch_size
         # define
         self._contextual_encoder = [ [] for _ in range(self.layer_num)]
 
         # W3 and W4 matrix in article
 
-        self.w3 = tf.Variable(tf.random_normal(shape=[self.encode_dim, self.emb_dim]), dtype=tf.float32)
-        self.w4 = tf.Variable(tf.random_normal(shape=[self.encode_dim, self.emb_dim]), dtype=tf.float32)
+        self.w3 = tf.Variable(tf.random_normal(shape=[1, self.encode_dim, self.emb_dim]), dtype=tf.float32)
+        self.w4 = tf.Variable(tf.random_normal(shape=[1, self.encode_dim, self.emb_dim]), dtype=tf.float32)
 
         # add a linear
         self.dense = Dense(self.encode_dim)
@@ -96,7 +101,7 @@ class ContextualEncoder(Model):
             for agent_index in range(self.agents_num):
                 z = tf.add_n(
                     [
-                        tf.reshape(tf.slice(x, [-1, -1, 0], [1, 1, self.encode_dim]),
+                        tf.reshape(tf.slice(x, [-1, -1, 0], [-1, 1, self.encode_dim]),
                                    [1, self.encode_dim]) for x in local_encoder_outputs
                     ]
                 )

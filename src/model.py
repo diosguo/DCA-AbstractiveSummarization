@@ -42,7 +42,8 @@ class DCA_Model(object):
                                self.dropout_keep,
                                self.encode_dim,
                                self.n_agents,
-                               self.encoder_layers_num)
+                               self.encoder_layers_num
+                               self.batch_size)
         self.decode = Decoder(self.attention_units, self.encode_dim, self.decode_len, self.vocab_size, self.emb_dim)
         self.softmax = Softmax()
         encoder_outputs, encoder_hidden = self.encoder(sequence_source_id)
@@ -70,7 +71,7 @@ if __name__ == '__main__':
 
     argparse = ArgumentParser()
     argparse.add_argument('--agents_num', default=3, type=int, help="the number of agents")
-    argparse.add_argument('--encode_dim', default=300, type=int, help='dim of encoder output')
+    argparse.add_argument('--encode_dim', default=128, type=int, help='dim of encoder output')
     argparse.add_argument('--agent_length', default=400, type=int, help='input length of per agents')
     argparse.add_argument('--emb_dim', default=300, type=int, help='dimention of embedding')
     argparse.add_argument('--batch_size', default=16, type=int, help='batch size')
@@ -79,9 +80,14 @@ if __name__ == '__main__':
     argparse.add_argument('--drop_keep', default=0.5, type=float)
     argparse.add_argument('--attention_units', default=100, type=int)
     argparse.add_argument('--learning_rate', default=0.01, type=float)
+    argparse.add_argument('--encoder_layers_num', default=3, type=int)
+    argparse.add_argument('--decode_len', default=100, type=int)
     arg = argparse.parse_args()
 
-    s = DCA_Model(arg)
+    word2id = {'<start>':0}
+    id2word = {0:'<start>'}
+    s = DCA_Model(arg, word2id, id2word)
+    s.model.summary()
 
 
 
