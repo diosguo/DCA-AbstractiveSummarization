@@ -1,8 +1,10 @@
 from tensorflow.python.keras.models import Model
-from tensorflow.python.keras.layers import Dense, Bidirectional, CuDNNLSTM, Dropout, Embedding
+from tensorflow.python.keras.layers import Dense, Bidirectional, CuDNNLSTM, Dropout, Embedding, Lambda
 from tensorflow.python.keras.activations import tanh
 import tensorflow as tf
-
+# from tensorflow.python.keras import backend as K
+import tensorflow.keras.backend as K
+# import tensorflow.python.keras.backend as K
 
 
 class Encoder(Model):
@@ -20,6 +22,7 @@ class Encoder(Model):
             is a tensor
         """
         super(Encoder, self).__init__()
+        print('Building Encoder')
         self.local_encoder = LocalEncoder(vocab_size,emb_dim, dropout,encode_dim,agents_num)
 
         self.context_encoder = ContextualEncoder(layers_num, agents_num, encode_dim, emb_dim, batch_size)
@@ -42,6 +45,7 @@ class Encoder(Model):
 class LocalEncoder(Model):
     def __init__(self, vocab_size, emb_dim, dropout, encode_dim, agents_num):
         super(LocalEncoder, self).__init__()
+        print('Building Local Encoder')
         self.vocab_size = vocab_size
         self.emb_dim = emb_dim
         self.dropout = dropout
@@ -64,7 +68,9 @@ class LocalEncoder(Model):
         inputs_embedding = self.embedding_dropout(inputs_embedding)
 
         for agent_index in range(self.agents_num):
-            part_sent = tf.slice(inputs_embedding, [0, 300*agent_index, 0], [-1, 300, self.emb_dim])
+
+            part_sent = inputs_embedding[:,300*agent_index:300*(agent_index+1),:]
+                # tf.slice(inputs_embedding, [0, 300*agent_index, 0], [-1, 300, self.emb_dim])
 
             local_encoder_outputs.append(
                 self.dense(
@@ -79,6 +85,7 @@ class LocalEncoder(Model):
 class ContextualEncoder(Model):
     def __init__(self, layer_num, agents_num, encode_dim, emb_dim , batch_size):
         super(ContextualEncoder, self).__init__()
+        print('Building Contextual Encoder')
         self.layer_num = layer_num
         self.agents_num = agents_num
         self.encode_dim = encode_dim
@@ -105,19 +112,14 @@ class ContextualEncoder(Model):
             self._contextual_encoder[0].append(x)
         for layer_index in range(self.layer_num-1):
             for agent_index in range(self.agents_num):
-                z = tf.add_n(
-                    [
-                        tf.reshape(tf.slice(x, [-1, -1, 0], [-1, 1, self.encode_dim]),
-                                   [self.batch_size, 1, self.encode_dim]) for x in self._contextual_encoder[layer_index]
-                    ]
-                )
+                temp_z = [K.reshape(x[:,-1,:],[self.batch_size, 1, self.encode_dim]) for x in self._contextual_encoder[layer_index]]
 
-                print(z.shape)
+                z = Lambda(lambda x: tf.add_n(x))(temp_z)
+
                 z = z / (self.agents_num - 1)
-                z = tf.tile(z, [1, local_encoder_outputs[0].shape[1],1])
-                print(z.shape)
+                z = K.tile(z, [1, local_encoder_outputs[0].shape[1],1])
                 f = tanh(self.w3(self._contextual_encoder[layer_index][agent_index]) + self.w4(z))
-                print('f shape', f.shape)
+
                 self._contextual_encoder[layer_index+1].append(
                     self.dense(
                         self.bi_lstm(f)

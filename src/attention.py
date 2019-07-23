@@ -1,9 +1,9 @@
 from tensorflow.python.keras.models import Model
-from tensorflow.python.keras.layers import Dense
+from tensorflow.python.keras.layers import Dense, Lambda
 from tensorflow.python.keras.layers import Softmax
 from tensorflow.python.keras.activations import tanh
+import tensorflow.keras.backend as K
 import tensorflow as tf
-
 
 class WordAttention(Model):
     def __init__(self, units):
@@ -14,13 +14,14 @@ class WordAttention(Model):
         self.softmax = Softmax(axis=-1)
 
     def call(self, query, value):
-        query = tf.expand_dims(query, 1)
+        query = K.expand_dims(query, 1)
         l_a = []
         c = []
         for agent_index, agent_encode in enumerate(value):
             l = self.softmax( self.V(tanh(self.W5(agent_encode)+self.W6(query))))
-            c.append(tf.reduce_sum(l*agent_encode, axis=1))
-        return tf.stack(c, axis=1)
+            c.append(Lambda(lambda x: tf.reduce_sum(x, axis=1))(l*agent_encode))
+
+        return K.stack(c, axis=1)
 
 
 class AgentAttention(Model):
@@ -60,7 +61,7 @@ class BahAttention(Model):
         self.W2 = Dense(units)
 
     def call(self, query, value):
-        hidden_state = tf.expand_dims(query,1)
+        query = tf.expand_dims(query,1)
 
         score = self.V(tf.nn.tanh(self.W1(query)+self.W2(value)))
 

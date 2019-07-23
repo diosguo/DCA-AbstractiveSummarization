@@ -7,7 +7,6 @@ from encoder import ContextualEncoder
 from encoder import Encoder
 from decoder import Decoder
 import tensorflow as tf
-from attention import BahdanauAttention
 from loss import Seq2SeqLoss
 
 
@@ -44,7 +43,12 @@ class DCA_Model(object):
                                self.n_agents,
                                self.encoder_layers_num,
                                self.batch_size)
-        self.decode = Decoder(self.attention_units, self.encode_dim, self.decode_len, self.vocab_size, self.emb_dim)
+        self.decode = Decoder(self.attention_units,
+                              self.encode_dim,
+                              self.decode_len,
+                              self.vocab_size,
+                              self.emb_dim,
+                              self.batch_size)
         self.softmax = Softmax()
 
         encoder_outputs = self.encoder(sequence_source_id)
@@ -55,7 +59,7 @@ class DCA_Model(object):
 
         self.loss = Seq2SeqLoss(sequence_target_mask, self.batch_size)
 
-        model = Model([sequence_source_id, sequence_target_id], decoder_output)
+        model = Model([sequence_source_id, sequence_target_id], vocab_dists)
         model.compile(Adam(self.learning_rate),loss=self.loss)
         return model
 
