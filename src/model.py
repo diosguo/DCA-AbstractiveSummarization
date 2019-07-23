@@ -46,12 +46,10 @@ class DCA_Model(object):
                                self.batch_size)
         self.decode = Decoder(self.attention_units, self.encode_dim, self.decode_len, self.vocab_size, self.emb_dim)
         self.softmax = Softmax()
-        encoder_outputs, encoder_hidden = self.encoder(sequence_source_id)
 
-        decode_hidden = encoder_hidden
-        # 初始输入
+        encoder_outputs = self.encoder(sequence_source_id)
 
-        decoder_output = self.decode(sequence_target_id, decode_hidden, encoder_outputs)
+        decoder_output = self.decode(sequence_target_id, encoder_outputs, self.word2id)
 
         vocab_dists = self.softmax(decoder_output)
 

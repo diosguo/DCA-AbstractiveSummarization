@@ -62,8 +62,10 @@ class LocalEncoder(Model):
         local_encoder_outputs = []
         inputs_embedding = self.embedding(inputs)
         inputs_embedding = self.embedding_dropout(inputs_embedding)
+
         for agent_index in range(self.agents_num):
             part_sent = tf.slice(inputs_embedding, [0, 300*agent_index, 0], [-1, 300, self.emb_dim])
+
             local_encoder_outputs.append(
                 self.dense(
                     self.dropout_layer(
@@ -87,9 +89,11 @@ class ContextualEncoder(Model):
 
         # W3 and W4 matrix in article
 
-        self.w3 = tf.Variable(tf.random_normal(shape=[1, self.encode_dim, self.emb_dim]), dtype=tf.float32)
-        self.w4 = tf.Variable(tf.random_normal(shape=[1, self.encode_dim, self.emb_dim]), dtype=tf.float32)
+        # self.w3 = tf.Variable(tf.random_normal(shape=[1, self.encode_dim, self.encode_dim]), dtype=tf.float32)
+        # self.w4 = tf.Variable(tf.random_normal(shape=[1, self.encode_dim, self.encode_dim]), dtype=tf.float32)
 
+        self.w3 = Dense(self.encode_dim)
+        self.w4 = Dense(self.encode_dim)
         # add a linear
         self.dense = Dense(self.encode_dim)
 
@@ -97,21 +101,26 @@ class ContextualEncoder(Model):
         self.bi_lstm = Bidirectional(CuDNNLSTM(self.encode_dim, return_sequences=True), merge_mode='concat')
 
     def call(self, local_encoder_outputs):
-        for layer_index in range(self.layer_num):
+        for x in local_encoder_outputs:
+            self._contextual_encoder[0].append(x)
+        for layer_index in range(self.layer_num-1):
             for agent_index in range(self.agents_num):
                 z = tf.add_n(
                     [
                         tf.reshape(tf.slice(x, [-1, -1, 0], [-1, 1, self.encode_dim]),
-                                   [1, self.encode_dim]) for x in local_encoder_outputs
+                                   [self.batch_size, 1, self.encode_dim]) for x in self._contextual_encoder[layer_index]
                     ]
                 )
 
+                print(z.shape)
                 z = z / (self.agents_num - 1)
-                f = tanh(tf.matmul(local_encoder_outputs[agent_index], self.w3) + tf.matmul(z, self.w4))
-
-                self._contextual_encoder[layer_index].append(
+                z = tf.tile(z, [1, local_encoder_outputs[0].shape[1],1])
+                print(z.shape)
+                f = tanh(self.w3(self._contextual_encoder[layer_index][agent_index]) + self.w4(z))
+                print('f shape', f.shape)
+                self._contextual_encoder[layer_index+1].append(
                     self.dense(
                         self.bi_lstm(f)
                     )
                 )
-        return self._contextual_encoder
+        return self._contextual_encoder[-1]

@@ -8,7 +8,7 @@ class Decoder(Model):
     def __init__(self, attention_units, decode_dim, decode_len, vocab_size, emb_dim):
         super(Decoder, self).__init__()
         self.decode_len = decode_len
-        self.attention = BahdanauAttention(attention_units)
+        self.word_attention = BahdanauAttention(attention_units)
         self.lstm = CuDNNLSTM(decode_dim, return_state=True)
 
         # 现在用了Decoder Encoder独立的Embedding
@@ -18,15 +18,19 @@ class Decoder(Model):
         # decode to vocab
         self.dense = Dense(vocab_size)
 
-    def call(self, target_id, hidden, encoder_outputs,word2id):
+    def call(self, target_id, encoder_outputs,word2id):
         batch_size = tf.shape(target_id)[0] # get batch size
 
         unit_input = tf.expand_dims([word2id['<start>']*batch_size])
 
         output = []
 
+        # last state of first agent
+        hidden = encoder_outputs[0][:,-1,:]
+
         for i in range(self.decode_len):
-            context_vector, attention_weights = self.attention(hidden, encoder_outputs)
+
+            context_vector, attention_weights = self.word_attention(hidden, encoder_outputs)
 
             target_emb = self.embedding(unit_input)
             target_emb = tf.concat([tf.expand_dims(context_vector, 1), target_emb], axis=1)
