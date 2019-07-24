@@ -1,13 +1,13 @@
-from tensorflow.python.keras.layers import Embedding, CuDNNLSTM, Dropout, Dense, Bidirectional, Flatten, Input, Softmax
-from tensorflow.python.keras.models import Sequential, Model
-from tensorflow.python.keras.optimizers import Adam
-from tensorflow.python.keras.activations import tanh
-from tensorflow.python import keras
-from encoder import ContextualEncoder
+from tensorflow.python.keras.layers import Input, Softmax, Concatenate
+
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.losses import mean_squared_error
+from tensorflow.keras.layers import Lambda
 from encoder import Encoder
 from decoder import Decoder
 import tensorflow as tf
-from loss import Seq2SeqLoss
+from loss import Seq2SeqLoss, losses
 
 
 
@@ -48,19 +48,24 @@ class DCA_Model(object):
                               self.decode_len,
                               self.vocab_size,
                               self.emb_dim,
-                              self.batch_size)
-        self.softmax = Softmax()
+                              self.batch_size,
+                              self.word2id)
+        self.softmax = Softmax(axis=-1)
 
         encoder_outputs = self.encoder(sequence_source_id)
-
-        decoder_output = self.decode(sequence_target_id, encoder_outputs, self.word2id)
-
+        # encoder_outputs = Concatenate(encoder_outputs, axis=1)
+        decoder_output = self.decode(sequence_target_id, encoder_outputs)
+        print('##########',encoder_outputs)
+        print('##########',decoder_output.shape)
+        # decoder_output = Lambda(lambda x:tf.unstack(x))(decoder_output)
         vocab_dists = self.softmax(decoder_output)
 
         self.loss = Seq2SeqLoss(sequence_target_mask, self.batch_size)
 
-        model = Model([sequence_source_id, sequence_target_id], vocab_dists)
-        model.compile(Adam(self.learning_rate),loss=self.loss)
+        model = Model([sequence_source_id, sequence_target_id], decoder_output)
+        loss = losses(self.decode_len, sequence_target_mask, self.batch_size, vocab_dists, sequence_target_id)
+        model.add_loss(loss)
+        model.compile(Adam(self.learning_rate))
         return model
 
 
@@ -83,7 +88,7 @@ if __name__ == '__main__':
     argparse.add_argument('--attention_units', default=100, type=int)
     argparse.add_argument('--learning_rate', default=0.01, type=float)
     argparse.add_argument('--encoder_layers_num', default=3, type=int)
-    argparse.add_argument('--decode_len', default=100, type=int)
+    argparse.add_argument('--decode_len', default=10, type=int)
     arg = argparse.parse_args()
 
     word2id = {'<start>':0}

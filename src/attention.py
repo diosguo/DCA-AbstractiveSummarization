@@ -1,8 +1,8 @@
-from tensorflow.python.keras.models import Model
-from tensorflow.python.keras.layers import Dense, Lambda
-from tensorflow.python.keras.layers import Softmax
-from tensorflow.python.keras.activations import tanh
-import tensorflow.keras.backend as K
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, Lambda
+from tensorflow.keras.layers import Softmax
+from tensorflow.keras.activations import tanh
+import keras.backend as K
 import tensorflow as tf
 
 class WordAttention(Model):
@@ -33,9 +33,9 @@ class AgentAttention(Model):
         self.softmax = Softmax(axis=-1)
 
     def call(self, query, value):
-        query = tf.expand_dims(query,1)
+        query = K.expand_dims(query,1)
         g = self.softmax(self.V(tanh(self.W7(value)+self.W8(query))))
-        c = tf.reduce_sum(g*value, axis=1)
+        c = Lambda(lambda x:tf.reduce_sum(x, axis=1))(g*value)
         return c
 
 
@@ -47,6 +47,7 @@ class HiAttention(Model):
 
     def call(self, query, value):
         c_a = self.word(query,value)
+
         context_vector = self.agent(query, c_a)
 
         return context_vector

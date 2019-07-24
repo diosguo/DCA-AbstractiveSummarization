@@ -1,10 +1,10 @@
-from tensorflow.python.keras.models import Model
-from tensorflow.python.keras.layers import Dense, Bidirectional, CuDNNLSTM, Dropout, Embedding, Lambda
-from tensorflow.python.keras.activations import tanh
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, Bidirectional, CuDNNLSTM, Dropout, Embedding, Lambda
+from tensorflow.keras.activations import tanh
 import tensorflow as tf
-# from tensorflow.python.keras import backend as K
-import tensorflow.keras.backend as K
-# import tensorflow.python.keras.backend as K
+
+import keras.backend as K
+
 
 
 class Encoder(Model):
@@ -82,6 +82,7 @@ class LocalEncoder(Model):
             )
         return local_encoder_outputs
 
+
 class ContextualEncoder(Model):
     def __init__(self, layer_num, agents_num, encode_dim, emb_dim , batch_size):
         super(ContextualEncoder, self).__init__()
@@ -93,11 +94,6 @@ class ContextualEncoder(Model):
         self.batch_size = batch_size
         # define
         self._contextual_encoder = [ [] for _ in range(self.layer_num)]
-
-        # W3 and W4 matrix in article
-
-        # self.w3 = tf.Variable(tf.random_normal(shape=[1, self.encode_dim, self.encode_dim]), dtype=tf.float32)
-        # self.w4 = tf.Variable(tf.random_normal(shape=[1, self.encode_dim, self.encode_dim]), dtype=tf.float32)
 
         self.w3 = Dense(self.encode_dim)
         self.w4 = Dense(self.encode_dim)
