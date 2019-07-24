@@ -5,7 +5,7 @@ import keras.backend as K
 from attention import HiAttention
 
 class Decoder(Model):
-    def __init__(self, attention_units, decode_dim, decode_len, vocab_size, emb_dim, batch_size, word2id):
+    def __init__(self, mode, attention_units, decode_dim, decode_len, vocab_size, emb_dim, batch_size, word2id):
         super(Decoder, self).__init__()
         print('Building Decoder')
         self.decode_len = decode_len
@@ -23,37 +23,70 @@ class Decoder(Model):
         # decode to vocab
         self.dense = Dense(vocab_size)
         self.word2id = word2id
+        self.mode = mode
 
     def call(self, target_id, encoder_outputs):
+        if self.mode == 'train':
+            unit_input = K.expand_dims([self.word2id['<start>']]*self.batch_size,1)
 
-        unit_input = K.expand_dims([self.word2id['<start>']]*self.batch_size,1)
+            output = []
 
-        output = []
+            # last state of first agent
+            hidden = encoder_outputs[0][:,-1,:]
 
-        # last state of first agent
-        hidden = encoder_outputs[0][:,-1,:]
+            pre_context_vector = K.variable(K.zeros(shape=[self.batch_size, self.decode_dim]))
+            for i in range(self.decode_len):
+                print('build %d step of %d' % (i,self.decode_len))
+                context_vector = self.attention(hidden, encoder_outputs)
 
-        pre_context_vector = K.variable(K.zeros(shape=[self.batch_size, self.decode_dim]))
-        for i in range(self.decode_len):
-            print('build %d step of %d' % (i,self.decode_len))
-            context_vector = self.attention(hidden, encoder_outputs)
+                target_emb = self.embedding(unit_input)
 
-            target_emb = self.embedding(unit_input)
+                target_emb = K.concatenate([K.expand_dims(context_vector, 1), target_emb], axis=-1)
 
-            target_emb = K.concatenate([K.expand_dims(context_vector, 1), target_emb], axis=-1)
+                step_output = self.lstm(target_emb)
 
-            step_output = self.lstm(target_emb)
+                hidden = step_output
 
-            hidden = step_output
+                # step_output = tf.reshape(step_output, (-1, step_output.shape[1]))  # 0=batch_size, 1=1, 2=decode_dim
 
-            # step_output = tf.reshape(step_output, (-1, step_output.shape[1]))  # 0=batch_size, 1=1, 2=decode_dim
+                step_output = self.dense(K.concatenate([step_output, context_vector, pre_context_vector],axis=-1))
+                pre_context_vector = context_vector
 
-            step_output = self.dense(K.concatenate([step_output, context_vector, pre_context_vector],axis=-1))
-            pre_context_vector = context_vector
+                output.append(step_output)
 
-            output.append(step_output)
+                unit_input = K.expand_dims(target_id[:, i], 1)
 
-            unit_input = K.expand_dims(target_id[:, i], 1)
+            output = Lambda(lambda x:tf.stack(x, axis=1))(output)
+            return output
+        else:
+            unit_input = K.expand_dims([self.word2id['<start>']] * self.batch_size, 1)
 
-        output = Lambda(lambda x:tf.stack(x, axis=1))(output)
-        return output
+            output = []
+
+            # last state of first agent
+            hidden = encoder_outputs[0][:, -1, :]
+
+            pre_context_vector = K.variable(K.zeros(shape=[self.batch_size, self.decode_dim]))
+            for i in range(self.decode_len):
+                print('build %d step of %d' % (i, self.decode_len))
+                context_vector = self.attention(hidden, encoder_outputs)
+
+                # 获取上一步输出的embedding
+                target_emb = self.embedding(unit_input)
+                # 与attention联合输出
+                target_emb = K.concatenate([K.expand_dims(context_vector, 1), target_emb], axis=-1)
+                # 送入lstm
+                step_output = self.lstm(target_emb)
+
+                hidden = step_output
+
+                step_output = self.dense(K.concatenate([step_output, context_vector, pre_context_vector], axis=-1))
+                pre_context_vector = context_vector
+
+                output.append(step_output)
+
+                unit_input = K.argmax(K.softmax(step_output))
+
+            output = Lambda(lambda x: tf.stack(x, axis=1))(output)
+            return output
+

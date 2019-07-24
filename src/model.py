@@ -23,9 +23,10 @@ class DCA_Model(object):
         self.attention_units = arg.attention_units
         self.decode_len = arg.decode_len
         self.learning_rate = arg.learning_rate
+        self.len_per_agent = arg.len_per_agent
         self.word2id = word2id
         self.id2word = id2word
-
+        self.mode = arg.mode
         self.model = self._build_model()
 
 
@@ -43,7 +44,8 @@ class DCA_Model(object):
                                self.n_agents,
                                self.encoder_layers_num,
                                self.batch_size)
-        self.decode = Decoder(self.attention_units,
+        self.decode = Decoder(self.mode,
+                              self.attention_units,
                               self.encode_dim,
                               self.decode_len,
                               self.vocab_size,
@@ -62,10 +64,11 @@ class DCA_Model(object):
 
         self.loss = Seq2SeqLoss(sequence_target_mask, self.batch_size)
 
-        model = Model([sequence_source_id, sequence_target_id], decoder_output)
+        model = Model([sequence_source_id, sequence_target_id], vocab_dists)
         loss = losses(self.decode_len, sequence_target_mask, self.batch_size, vocab_dists, sequence_target_id)
         model.add_loss(loss)
         model.compile(Adam(self.learning_rate))
+
         return model
 
 
@@ -89,6 +92,8 @@ if __name__ == '__main__':
     argparse.add_argument('--learning_rate', default=0.01, type=float)
     argparse.add_argument('--encoder_layers_num', default=3, type=int)
     argparse.add_argument('--decode_len', default=10, type=int)
+    argparse.add_argument('--mode',default='train',type=str,help='train/decode')
+    argparse.add_argument('--len_per_agent',default=300, type=int)
     arg = argparse.parse_args()
 
     word2id = {'<start>':0}
