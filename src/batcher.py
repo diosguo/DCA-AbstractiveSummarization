@@ -29,10 +29,12 @@ class Example(object):
     """Class representing a train/val/test example for text summarization."""
 
     def __init__(self, article, abstract_sentences, vocab, hps):
-        """Initializes the Example, performing tokenization and truncation to produce the encoder, decoder and target sequences, which are stored in self.
+        """Initializes the Example, performing tokenization and truncation to
+        produce the encoder, decoder and target sequences, which are stored in self.
         Args:
           article: source text; a string. each token is separated by a single space.
-          abstract_sentences: list of strings, one per abstract sentence. In each sentence, each token is separated by a single space.
+          abstract_sentences: list of strings, one per abstract sentence. In each
+                        sentence, each token is separated by a single space.
           vocab: Vocabulary object
           hps: hyperparameters
         """
@@ -63,10 +65,13 @@ class Example(object):
 
         # If using pointer-generator mode, we need to store some extra info
         if hps.pointer_gen:
-            # Store a version of the enc_input where in-article OOVs are represented by their temporary OOV id; also store the in-article OOVs words themselves
+            # Store a version of the enc_input where in-article OOVs are
+            # represented by their temporary OOV id; also store the in-article
+            # OOVs words themselves
             self.enc_input_extend_vocab, self.article_oovs = data.article2ids(article_words, vocab)
 
-            # Get a verison of the reference summary where in-article OOVs are represented by their temporary article OOV id
+            # Get a verison of the reference summary where in-article OOVs are
+            # represented by their temporary article OOV id
             abs_ids_extend_vocab = data.abstract2ids(abstract_words, vocab, self.article_oovs)
 
             # Overwrite decoder target sequence so it uses the temp article OOV ids
@@ -79,7 +84,12 @@ class Example(object):
         self.original_abstract_sents = abstract_sentences
 
     def get_dec_inp_targ_seqs(self, sequence, max_len, start_id, stop_id):
-        """Given the reference summary as a sequence of tokens, return the input sequence for the decoder, and the target sequence which we will use to calculate loss. The sequence will be truncated if it is longer than max_len. The input sequence must start with the start_id and the target sequence must end with the stop_id (but not if it's been truncated).
+        """Given the reference summary as a sequence of tokens, return the
+        input sequence for the decoder, and the target sequence which we
+        will use to calculate loss. The sequence will be truncated if it
+        is longer than max_len. The input sequence must start with the
+        start_id and the target sequence must end with the stop_id
+        (but not if it's been truncated).
         Args:
           sequence: List of ids (integers)
           max_len: integer
@@ -286,8 +296,8 @@ class Batcher(object):
 
         while True:
             try:
-                (article,
-                 abstract) = input_gen.next()  # read the next example from file. article and abstract are both strings.
+                # read the next example from file. article and abstract are both strings.
+                (article, abstract, headline) = input_gen.next()
             except StopIteration:  # if there are no more examples:
                 tf.logging.info("The example generator for this example queue filling thread has exhausted data.")
                 if self._single_pass:
@@ -359,10 +369,12 @@ class Batcher(object):
                     0]  # the article text was saved under the key 'article' in the data files
                 abstract_text = e.features.feature['abstract'].bytes_list.value[
                     0]  # the abstract text was saved under the key 'abstract' in the data files
+                headline_text = e.features.feature['headline'].bytes_list.value[
+                    0]
             except ValueError:
                 tf.logging.error('Failed to get article or abstract from example')
                 continue
             if len(article_text) == 0:  # See https://github.com/abisee/pointer-generator/issues/1
                 tf.logging.warning('Found an example with empty article text. Skipping it.')
             else:
-                yield (article_text, abstract_text)
+                yield (article_text, abstract_text, headline_text)

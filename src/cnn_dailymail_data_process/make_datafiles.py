@@ -268,11 +268,13 @@ def check_num_stories(stories_dir, num_expected):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 3:
-        print("USAGE: python make_datafiles.py <cnn_stories_dir> <dailymail_stories_dir>")
+    if len(sys.argv) != 5:
+        print("USAGE: python make_datafiles.py <cnn_stories_dir> <dailymail_stories_dir> <cnn_stories_dir> <dailymail stories_dir>")
         sys.exit()
     cnn_stories_dir = sys.argv[1]
     dm_stories_dir = sys.argv[2]
+    cnn_headline_dir = sys.argv[3]
+    dm_headline_dir = sys.argv[4]
 
     # 如果文件数不匹配，那么就引发异常
     # These are the number of .story files we expect there to be in cnn_stories_dir and dm_stories_dir
@@ -294,6 +296,8 @@ if __name__ == '__main__':
     # Run stanford tokenizer on both stories dirs, outputting to tokenized stories directories
     tokenize_stories(cnn_stories_dir, cnn_tokenized_stories_dir)
     tokenize_stories(dm_stories_dir, dm_tokenized_stories_dir)
+    tokenize_stories(cnn_headline_dir, cnn_tokenized_headline_dir)
+    tokenize_stories(dm_headline_dir, dm_tokenized_headline_dir)
 
     # Read the tokenized stories, do a little postprocessing then write to bin files
     write_to_bin(all_test_urls, os.path.join(finished_files_dir, "test.bin"))
