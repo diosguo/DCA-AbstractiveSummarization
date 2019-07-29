@@ -6,6 +6,7 @@ import subprocess
 import collections
 import tensorflow as tf
 from tensorflow.core.example import example_pb2
+from tqdm import tqdm
 
 dm_single_close_quote = u'\u2019'  # unicode
 dm_double_close_quote = u'\u201d'
@@ -22,12 +23,12 @@ all_test_urls = "url_lists/all_test.txt"
 
 cnn_tokenized_stories_dir = "cnn_stories_tokenized"
 dm_tokenized_stories_dir = "dm_stories_tokenized"
+cnn_tokenized_headline_dir = "cnn_headline_tokenized"
+dm_tokenized_headline_dir = "cnn_headline_tokenized"
 finished_files_dir = "finished_files"
 chunks_dir = os.path.join(finished_files_dir, "chunked")
 
-# These are the number of .story files we expect there to be in cnn_stories_dir and dm_stories_dir
-num_expected_cnn_stories = 92579
-num_expected_dm_stories = 219506
+
 
 VOCAB_SIZE = 200000
 CHUNK_SIZE = 1000  # num examples per chunk, for the chunked data
@@ -90,6 +91,11 @@ def tokenize_stories(stories_dir, tokenized_stories_dir):
 
 
 def read_text_file(text_file):
+    """
+    从url文件读入
+    :param text_file: 文件路径
+    :return:lines: [urls]
+    """
     lines = []
     with open(text_file, "r") as f:
         for line in f:
@@ -105,11 +111,19 @@ def hashhex(s):
 
 
 def get_url_hashes(url_list):
+    """
+    返回url的sha值哈希值
+    :param url_list:
+    :return: [hashhex(urls)]
+    """
     return [hashhex(url) for url in url_list]
 
 
 def fix_missing_period(line):
-    """Adds a period to a line that is missing a period"""
+    """
+    在每个句子结束没有结束标点符号的，给添加一个句号
+    Adds a period to a line that is missing a period
+    """
     if "@highlight" in line: return line
     if line == "": return line
     if line[-1] in END_TOKENS: return line
@@ -117,14 +131,26 @@ def fix_missing_period(line):
     return line + " ."
 
 
-def get_art_abs(story_file):
+def get_art_abs(story_file, headline_file):
+    """
+    从Story文件中解析出article与abstract，其中每篇文章都是一个字符串，abstract句子之间用<s></s>标记
+    从Head文件中读入Headline
+    :param story_file:
+    :return: article, abstract, headline
+    """
     lines = read_text_file(story_file)
-
+    headlines = read_text_file(headline_file)
     # Lowercase everything
     lines = [line.lower() for line in lines]
+    headlines = [headlines.lower() for head in headlines]
 
-    # Put periods on the ends of lines that are missing them (this is a problem in the dataset because many image captions don't end in periods; consequently they end up in the body of the article as run-on sentences)
+    # Put periods on the ends of lines that are missing them
+    # (this is a problem in the dataset because many image
+    # captions don't end in periods; consequently they end
+    # up in the body of the article as run-on sentences)
     lines = [fix_missing_period(line) for line in lines]
+
+    # 我猜headline不需要句子结束的标点符号
 
     # Separate out article and abstract sentences
     article_lines = []
@@ -146,34 +172,49 @@ def get_art_abs(story_file):
     # Make abstract into a signle string, putting <s> and </s> tags around the sentences
     abstract = ' '.join(["%s %s %s" % (SENTENCE_START, sent, SENTENCE_END) for sent in highlights])
 
-    return article, abstract
+    return article, abstract, ' '.join(headlines)
 
 
 def write_to_bin(url_file, out_file, makevocab=False):
-    """Reads the tokenized .story files corresponding to the urls listed in the url_file and writes them to a out_file."""
+    """
+    Reads the tokenized .story files corresponding to the urls
+    listed in the url_file and writes them to a out_file.
+    """
     print("Making bin file for URLs listed in %s..." % url_file)
     url_list = read_text_file(url_file)
     url_hashes = get_url_hashes(url_list)
+
+    # 用url的哈希值当做文件名
     story_fnames = [s + ".story" for s in url_hashes]
+    head_fnames = [s + '.html' for s in url_hashes]
     num_stories = len(story_fnames)
 
     if makevocab:
         vocab_counter = collections.Counter()
 
     with open(out_file, 'wb') as writer:
-        for idx, s in enumerate(story_fnames):
-            if idx % 1000 == 0:
-                print("Writing story %i of %i; %.2f percent done" % (
-                idx, num_stories, float(idx) * 100.0 / float(num_stories)))
+        print('Writing data...')
+        for s, hs in tqdm(zip(story_fnames, head_fnames)):
 
             # Look in the tokenized story dirs to find the .story file corresponding to this url
+            # 构造当前文件名
+            # 如果不存在文件，那么抛出异常
+
+            if not os.path.isfile(os.path.join(cnn_tokenized_headline_dir, hs)):
+                if not os.path.isfile(os.path.join(dm_tokenized_headline_dir, hs)):
+                    raise Exception('There is not exist file:%s'%hs)
+
+            else:
+                headline_file = os.path.join(cnn_tokenized_headline_dir, s)
+
             if os.path.isfile(os.path.join(cnn_tokenized_stories_dir, s)):
                 story_file = os.path.join(cnn_tokenized_stories_dir, s)
             elif os.path.isfile(os.path.join(dm_tokenized_stories_dir, s)):
                 story_file = os.path.join(dm_tokenized_stories_dir, s)
             else:
                 print(
-                    "Error: Couldn't find tokenized story file %s in either tokenized story directories %s and %s. Was there an error during tokenization?" % (
+                    "Error: Couldn't find tokenized story file %s in either tokenized "
+                    "story directories %s and %s. Was there an error during tokenization?" % (
                     s, cnn_tokenized_stories_dir, dm_tokenized_stories_dir))
                 # Check again if tokenized stories directories contain correct number of files
                 print("Checking that the tokenized stories directories %s and %s contain correct number of files..." % (
@@ -185,12 +226,13 @@ def write_to_bin(url_file, out_file, makevocab=False):
                     cnn_tokenized_stories_dir, dm_tokenized_stories_dir, s))
 
             # Get the strings to write to .bin file
-            article, abstract = get_art_abs(story_file)
+            article, abstract, headline = get_art_abs(story_file, headline_file)
 
             # Write to tf.Example
             tf_example = example_pb2.Example()
             tf_example.features.feature['article'].bytes_list.value.extend([article])
             tf_example.features.feature['abstract'].bytes_list.value.extend([abstract])
+            tf_example.features.feature['headline'].bytes_list.value.extend([headline])
             tf_example_str = tf_example.SerializeToString()
             str_len = len(tf_example_str)
             writer.write(struct.pack('q', str_len))
@@ -232,15 +274,23 @@ if __name__ == '__main__':
     cnn_stories_dir = sys.argv[1]
     dm_stories_dir = sys.argv[2]
 
+    # 如果文件数不匹配，那么就引发异常
+    # These are the number of .story files we expect there to be in cnn_stories_dir and dm_stories_dir
+    num_expected_cnn_stories = 92579
+    num_expected_dm_stories = 219506
     # Check the stories directories contain the correct number of .story files
     check_num_stories(cnn_stories_dir, num_expected_cnn_stories)
     check_num_stories(dm_stories_dir, num_expected_dm_stories)
 
+    # 创建保存分词结果的目录
     # Create some new directories
     if not os.path.exists(cnn_tokenized_stories_dir): os.makedirs(cnn_tokenized_stories_dir)
     if not os.path.exists(dm_tokenized_stories_dir): os.makedirs(dm_tokenized_stories_dir)
     if not os.path.exists(finished_files_dir): os.makedirs(finished_files_dir)
+    if not os.path.exists(cnn_tokenized_headline_dir): os.makedirs(cnn_tokenized_headline_dir)
+    if not os.path.exists(dm_tokenized_headline_dir): os.makedirs(dm_tokenized_headline_dir)
 
+    # 调用斯坦福分词工具
     # Run stanford tokenizer on both stories dirs, outputting to tokenized stories directories
     tokenize_stories(cnn_stories_dir, cnn_tokenized_stories_dir)
     tokenize_stories(dm_stories_dir, dm_tokenized_stories_dir)
