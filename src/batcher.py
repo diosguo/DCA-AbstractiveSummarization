@@ -28,7 +28,7 @@ import data
 class Example(object):
     """Class representing a train/val/test example for text summarization."""
 
-    def __init__(self, article, abstract_sentences, vocab, hps):
+    def __init__(self, article, abstract_sentences, headline, vocab, hps):
         """Initializes the Example, performing tokenization and truncation to
         produce the encoder, decoder and target sequences, which are stored in self.
         Args:
@@ -57,6 +57,11 @@ class Example(object):
         abstract_words = abstract.split()  # list of strings
         abs_ids = [vocab.word2id(w) for w in
                    abstract_words]  # list of word ids; OOVs are represented by the id for UNK token
+
+        # Process the headline
+        headline = ' '.join(headline)
+        headline_words = headline.split()
+        head_ids = [vocab.word2id(w) for w in headline_words]
 
         # Get the decoder input sequence and target sequence
         self.dec_input, self.target = self.get_dec_inp_targ_seqs(abs_ids, hps.max_dec_steps, start_decoding,
@@ -297,7 +302,7 @@ class Batcher(object):
         while True:
             try:
                 # read the next example from file. article and abstract are both strings.
-                (article, abstract, headline) = input_gen.next()
+                (article, abstract, headline) = next(input_gen)
             except StopIteration:  # if there are no more examples:
                 tf.logging.info("The example generator for this example queue filling thread has exhausted data.")
                 if self._single_pass:
@@ -310,7 +315,7 @@ class Batcher(object):
 
             abstract_sentences = [sent.strip() for sent in data.abstract2sents(
                 abstract)]  # Use the <s> and </s> tags in abstract to get a list of sentences.
-            example = Example(article, abstract_sentences, self._vocab, self._hps)  # Process into an Example.
+            example = Example(article, abstract_sentences, headline, self._vocab, self._hps)  # Process into an Example.
             self._example_queue.put(example)  # place the Example in the example queue.
 
     def fill_batch_queue(self):
@@ -363,7 +368,7 @@ class Batcher(object):
         Args:
           example_generator: a generator of tf.Examples from file. See data.example_generator"""
         while True:
-            e = example_generator.next()  # e is a tf.Example
+            e = next(example_generator)  # e is a tf.Example
             try:
                 article_text = e.features.feature['article'].bytes_list.value[
                     0]  # the article text was saved under the key 'article' in the data files
